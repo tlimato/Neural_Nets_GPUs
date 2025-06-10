@@ -1,11 +1,35 @@
 # Tyson Limato
 # 6/1/2025
+# Serial Code
 
-import pandas as pd
+
+# Notes 6/9/2025
+# --- model parallel ---
+# within 2 mpi ranks for 2 compute devices, within compute data chunk on certain layers then send at end of loop to rank 1 for receive given you are using send receive.
+# then gpu 1x then 2x
+# route comm through host and flag for nvlink (for direct comm.)
+# Compare Comm time for host gpu host gpu vs. gpu to gpu
+# matplot lib loss graphs for MSE and prediction loss, as well as other helpful graphs
+# Metric vs freedom units (because international students)
+
+# ------------------ Additional Resources ------------------
+# https://wandb.ai/ayush-thakur/keras-dense/reports/Keras-Dense-Layer-How-to-Use-It-Correctly--Vmlldzo0MjAzNDY1
+
+
+
+
 import random
 import math
 import json
 import os.path
+from typing import Literal
+# External Libraries
+import pandas as pd
+from mpi4py import MPI
+
+# Globals for Parallelism
+comm =  MPI.COMM_WORLD
+size = comm.size
 
 # ------------------ Layer Base ------------------
 class Layer:
@@ -82,6 +106,7 @@ class Sigmoid(Layer):
 # ------------------ Neural Network ------------------
 class HousePriceMLP:
     def __init__(self, learning_rate=0.001):
+        # Easily Abstract the layers for paralllel programming
         self.layers = [
             Dense(input_size=14, output_size=128, learning_rate=learning_rate),
             ReLU(),
@@ -126,12 +151,14 @@ class HousePriceMLP:
         for layer in reversed(self.layers):
             dL_dout = layer.backward(dL_dout)
 
-    def train(self, X, y, epochs=10):
+    def train(self, X, y, epochs=10, parallel: Literal["false", "MPI", "MPI+CUDA"] = "false"):
+       if parallel == "false": 
         for epoch in range(epochs):
             combined = list(zip(X, y))
             random.shuffle(combined)
             X[:], y[:] = zip(*combined)
             total_loss = 0
+
             for xi, yi in zip(X, y):
                 pred = self.forward(xi)
                 loss = (pred[0] - yi) ** 2
@@ -139,9 +166,18 @@ class HousePriceMLP:
 
                 self.backward(dL_dpred)
                 total_loss += loss
+
             mse = total_loss / len(X)
             self.loss_history.append(mse)
             print(f"Epoch {epoch+1}: MSE = {mse:.4f}")
+
+       elif parallel == "MPI":
+            raise NotImplementedError
+       
+       elif parallel == "MPI+CUDA":
+            raise NotImplementedError
+       else:
+            raise Warning('Args: "parallel" Not Invoked Properly, please specify from list of valid args ["false", "MPI", "MPI+CUDA"]')
     
     def get_loss_history(self):
         return self.loss_history
@@ -168,6 +204,9 @@ def predict_new_house(model, raw_input, X_min, X_max, y_min, y_max):
     norm_price = model.forward(norm_input)[0]
     return norm_price * (y_max - y_min) + y_min
 
+
+
+
 # ------------------ Training and Inference Runtime ------------------
 if __name__ == "__main__":
     model = HousePriceMLP(learning_rate=0.00001)
@@ -181,7 +220,7 @@ if __name__ == "__main__":
     X_test, y_test = X[split:], y[split:]
 
     # Train model
-    model.train(X_train, y_train, epochs=50)
+    model.train(X_train, y_train, epochs=5, parallel="false")
     model.save_weights("weights.json")
 
     # De-normalize predictions before evaluating
@@ -210,4 +249,4 @@ if __name__ == "__main__":
     X_max = X_df.max().tolist()
 
     predicted_price = predict_new_house(model, sample_house, X_min, X_max, y_min, y_max)
-    print(f"\nPredicted price for new house: ${predicted_price:.2f}")
+    print(f"\nPredicted price for new house: ${predicted_price:.2f}") # canada, europe, australia, japan
