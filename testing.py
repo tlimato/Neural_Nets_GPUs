@@ -483,7 +483,7 @@ class HousePriceMLP:
                     # Prepare buffer for receiving gradients back
                     grad_back = np.empty_like(acts)
                     comm.Recv([grad_back, MPI.DOUBLE], source=next_rank, tag=ep * num_batches + mb)
-                    # Backpropagate received gradients for each sample
+                    # Back propagate received gradients for each sample
                     for g in grad_back:
                         self.backward(g)
 
@@ -686,7 +686,7 @@ if __name__ == "__main__":
     # instantiate MPI Manager
     mpi_mgr = MPIManager()
     X, y, Xm, XM, ym, yM = load_data("house_prices.csv")
-    # Splite data 80% train and 20% test
+    # Split data 80% train and 20% test
     split = int(0.8 * len(X)); Xtr, ytr = X[:split], y[:split]
 
     # Instantiate the model and set the learning rate + mpi manager + args
@@ -712,7 +712,7 @@ if __name__ == "__main__":
 
             end_time = time.time()
             exec_time = end_time-start_time
-        # Data Parallelism hasn't been implemented for this excercise
+        # Data Parallelism hasn't been implemented for this exercise
         elif args.data_p:
             raise NotImplementedError
         
