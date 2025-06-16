@@ -1,7 +1,7 @@
 import csv
 import random
 
-def generate_house_data(num_samples=1000, filename="house_prices.csv"):
+def generate_house_data(num_samples=10000, filename="house_prices.csv"):
     headers = [
         'sqft', 'beds', 'baths', 'age', 'garage', 'stories', 'lot_size',
         'distance_to_city', 'crime_rate', 'school_rating', 'has_pool',
