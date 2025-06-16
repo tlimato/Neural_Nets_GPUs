@@ -2,6 +2,10 @@ import csv
 import random
 
 def generate_house_data(num_samples=10000, filename="house_prices.csv"):
+    """
+    Generate example data for classroom teaching.
+    (P.S: thanks Zillow for making real housing data impossible to get)
+    """
     headers = [
         'sqft', 'beds', 'baths', 'age', 'garage', 'stories', 'lot_size',
         'distance_to_city', 'crime_rate', 'school_rating', 'has_pool',
