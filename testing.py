@@ -23,7 +23,8 @@
 # Notes:
 #   - Complete multi-GPU testing
 #   - implement graphs
-#   -
+#   - c̶u̶r̶r̶e̶n̶c̶y̶ c̶o̶n̶v̶e̶r̶s̶i̶o̶n̶
+#   - 
 #
 # ------------------------------------------------------------
 
@@ -35,8 +36,9 @@ import time
 import argparse
 import os
 import cupy as cp
+import cupy.cuda.runtime as cuda_rt
 # ------------------ MPI Communication Manager ------------------
-from mpi4py import MPI
+
 
 class MPIManager:
     """
@@ -128,9 +130,7 @@ class Layer:
         raise NotImplementedError
 
 
-# ------------------ Dense Layer ------------------
-import numpy as np
-
+# ------------------ Dense Layer (CPU) ------------------
 class Dense(Layer):
     """
     A fully connected (dense) layer for a neural network.
@@ -199,7 +199,65 @@ class Dense(Layer):
         self.weights -= self.lr * dw
         self.biases  -= self.lr * db
 
-# ------------------ Activation ------------------
+# ------------------ Dense Layer (GPU) ------------------
+class DenseGPU(Layer):
+    """
+    A fully connected (dense) layer for GPU using CuPy.
+    Supports both per-sample (1D) and batched (2D) inputs.
+    """
+    def __init__(self, in_dim, out_dim, lr=0.001):
+        self.weights = cp.random.uniform(-0.5, 0.5, (out_dim, in_dim))
+        self.biases  = cp.random.uniform(-0.5, 0.5, out_dim)
+        self.lr = lr
+
+    def forward(self, x):
+        # ensure GPU array and store input for backward
+        x = cp.asarray(x)
+        self.x = x
+        if x.ndim == 1:
+            # Single-sample: (out_dim, in_dim) @ (in_dim,) -> (out_dim,)
+            return self.weights @ x + self.biases
+        elif x.ndim == 2:
+            # Batched: (batch, in_dim) @ (in_dim, out_dim) -> (batch, out_dim)
+            return x @ self.weights.T + self.biases[None, :]
+        else:
+            raise ValueError(f"DenseGPU.forward: unsupported input ndim={x.ndim}")
+
+    def backward(self, grad):
+        grad = cp.asarray(grad)
+        if grad.ndim == 1:
+            # Single-sample backward
+            dx = self.weights.T @ grad
+            dw = cp.outer(grad, self.x)
+            db = grad.copy()
+        else:
+            # Batched backward
+            dx = grad @ self.weights
+            dw = grad.T @ self.x
+            db = cp.sum(grad, axis=0)
+        return dx, dw, db
+
+    def apply(self, dw, db):
+        self.weights -= self.lr * dw
+        self.biases  -= self.lr * db
+
+# ------------------ Activation (GPU) ------------------
+class ReLUGPU(Layer):
+    """
+    ReLU activation for GPU using CuPy.
+    Applies f(x) = max(0, x) elementwise, supporting batch dims.
+    """
+    def forward(self, x):
+        x = cp.asarray(x)
+        self.mask = x > 0
+        return x * self.mask
+
+    def backward(self, grad):
+        grad_gpu = cp.asarray(grad)
+        return grad_gpu * self.mask
+
+
+# ------------------ Activation (CPU) ------------------
 class ReLU(Layer):
     """
     ReLU (Rectified Linear Unit) activation layer.
@@ -238,6 +296,9 @@ class ReLU(Layer):
         """
         return grad * self.mask  # Pass gradient only where input was > 0
 
+
+
+
 # ------------------ HousePriceMLP ------------------
 class HousePriceMLP:
     """
@@ -267,44 +328,49 @@ class HousePriceMLP:
     forward(x)              -- Forward pass through this rank's layer subset.
     backward(grad)          -- Backward pass with gradient updates.
     train_serial(X, y)      -- Serial training using full model on each rank.
-    train_pipeline(X, y)    -- Pipeline-parallel training using micro-batching.
+    train_pipeline_MPI(X, y)    -- Pipeline-parallel training using micro-batching.
     save_weights(path)      -- Save model parameters to file.
     load_weights(path)      -- Load parameters and broadcast if necessary.
     predict(raw, X_min, X_max, y_min, y_max) -- Normalize, predict, then denormalize.
     get_loss_history()      -- Return stored MSE loss values.
     """
-    def __init__(self, lr=1e-5, mpi_mgr=None, pipeline=False):
+    def __init__(self, lr=1e-5, mpi_mgr=None, pipeline=False, use_gpu=None):
         self.manager = mpi_mgr
         self.rank    = mpi_mgr.rank if mpi_mgr else 0
         self.size    = mpi_mgr.size if mpi_mgr else 1
+        self.pipeline = pipeline and (mpi_mgr is not None)
+        self.use_gpu = use_gpu
 
-        # Set CUDA device to current rank (for GPU parallelism)
-        cp.cuda.Device(self.rank).use()
+        # Select layer classes based on use_gpu
+        DenseClass = DenseGPU if use_gpu else Dense
+        ReLUClass  = ReLUGPU  if use_gpu else ReLU
 
+        # If using GPU, assign this rank a GPU device
+        if use_gpu:
+            cp.cuda.Device(self.rank).use()
 
         # Define the full model architecture (8 hidden layers + output)
         self.full_layers = [
-            Dense(14,512,lr), ReLU(),
-            Dense(512,256,lr), ReLU(),
-            Dense(256,128,lr),  ReLU(),
-            Dense(128,64,lr),  ReLU(),
-            Dense(64,32, lr),  ReLU(),
-            Dense(32,16, lr),  ReLU(),
-            Dense(16,8, lr),  ReLU(),
-            Dense(8,4, lr),  ReLU(),
-            Dense(4,1, lr)
+            DenseClass(14, 512, lr), ReLUClass(),
+            DenseClass(512, 256, lr), ReLUClass(),
+            DenseClass(256, 128, lr), ReLUClass(),
+            DenseClass(128, 64, lr), ReLUClass(),
+            DenseClass(64, 32, lr), ReLUClass(),
+            DenseClass(32, 16, lr), ReLUClass(),
+            DenseClass(16, 8, lr), ReLUClass(),
+            DenseClass(8, 4, lr), ReLUClass(),
+            DenseClass(4, 1, lr)
         ]
-        self.pipeline = pipeline and (mpi_mgr is not None)
+
         if self.pipeline:
-            # 1) group into Dense+ReLU “blocks”
+            # 1) Group into Dense+ReLU “blocks”
             blocks = []
             i = 0
             while i < len(self.full_layers):
-                blk = [ self.full_layers[i] ]
-                # if there's a ReLU right after this Dense, pull it in
-                if isinstance(self.full_layers[i], Dense) \
-                   and i+1 < len(self.full_layers) \
-                   and isinstance(self.full_layers[i+1], ReLU):
+                blk = [self.full_layers[i]]
+                if isinstance(self.full_layers[i], DenseClass) \
+                and i+1 < len(self.full_layers) \
+                and isinstance(self.full_layers[i+1], ReLUClass):
                     blk.append(self.full_layers[i+1])
                     i += 2
                 else:
@@ -312,37 +378,31 @@ class HousePriceMLP:
                 blocks.append(blk)
 
             num_blocks = len(blocks)
-            num_stages = mpi_mgr.size
+            num_stages = self.size
 
-            # Ensure there are enough blocks for all stages
             if num_stages > num_blocks:
                 raise ValueError(
                     f"Cannot pipeline across {num_stages} ranks: "
                     f"only {num_blocks} Dense-activation blocks available."
                 )
 
-            # 2) divide those blocks as evenly as possible
+            # 2) Divide blocks evenly
             per, rem = divmod(num_blocks, num_stages)
             start = 0
-            my_blocks = []
             for r in range(num_stages):
                 count = per + (1 if r < rem else 0)
                 selected = blocks[start:start+count]
-                if r == mpi_mgr.rank:
-                    # flatten the list of lists into self.layers
-                    self.layers = [ layer
-                                    for blk in selected
-                                    for layer in blk ]
+                if r == self.rank:
+                    self.layers = [layer for blk in selected for layer in blk]
                 start += count
-
-            # now every rank has self.layers containing at least one Dense
         else:
-            # serial (or data-parallel?): everyone just keeps the full model
+            # Serial or data-parallel
             self.layers = self.full_layers
             if mpi_mgr:
                 mpi_mgr.broadcast_model(self)
 
         self.loss_history = []
+
 
     def forward(self, x: np.ndarray) -> np.ndarray:
         """Forward pass through this rank's subset of layers."""
@@ -352,15 +412,20 @@ class HousePriceMLP:
             out = layer.forward(out)
         return out
 
-    def backward(self, grad: np.ndarray) -> np.ndarray:
-        """Backward pass through this rank's subset of layers."""
+
+    def backward(self, grad):
         for layer in reversed(self.layers):
-            if isinstance(layer, Dense):
-                grad, dw, db = layer.backward(grad)
+            # CPU or GPU dense?
+            if isinstance(layer, (Dense, DenseGPU)):
+                # both Dense and DenseGPU.backward return (dx, dw, db)
+                dx, dw, db = layer.backward(grad)
                 layer.apply(dw, db)
+                grad = dx
             else:
+                # activation layers (ReLU/ReLUGPU) just map grad→grad
                 grad = layer.backward(grad)
         return grad
+
 
     def save_weights(self, filepath: str):
         """Save model parameters (weights and biases) to a JSON file."""
@@ -429,8 +494,51 @@ class HousePriceMLP:
             if self.rank == 0:
                 print(f"Serial Epoch {ep+1}: MSE={mse:.4f}, t={time.time()-start:.2f}s")
 
+    def train_serial_gpu(self, X, y, epochs=20, batch_size=64):
+        # 1) Move all data to GPU once
+        X_gpu = cp.asarray(X)      # shape (N, 14)
+        y_gpu = cp.asarray(y)      # shape (N,)
 
-    def train_pipeline(self, X, y, epochs=20, micro_batch_size=8):
+        for ep in range(epochs):
+            # 2) shuffle indices on GPU
+            idxs = cp.random.permutation(len(X_gpu))
+            total_loss = 0.0
+
+            # 3) process in batches of batch_size
+            for start in range(0, len(X_gpu), batch_size):
+                batch_idx = idxs[start:start+batch_size]
+                Xb = X_gpu[batch_idx]      # shape (B, 14)
+                yb = y_gpu[batch_idx]      # shape (B,)
+
+                # 4) Forward pass for entire batch
+                out = Xb
+                for layer in self.layers:
+                    # each layer.forward must accept a 2D array (B, …)
+                    out = layer.forward(out)
+                preds = out.reshape(-1)     # shape (B,)
+
+                # 5) Compute loss & gradient in one shot
+                diff = preds - yb           # (B,)
+                total_loss += float(cp.sum(diff**2))
+                grad = (2 * diff / batch_size).reshape(-1, 1)  
+                                        # shape (B,1): gradient per sample
+
+                # 6) Backward pass for the batch
+                for layer in reversed(self.layers):
+                    if isinstance(layer, DenseGPU):
+                        dx, dw, db = layer.backward(grad)
+                        layer.apply(dw, db)
+                        grad = dx               # pass batch‐grad down
+                    else:
+                        grad = layer.backward(grad)
+
+            # 7) report
+            mse = total_loss / len(X_gpu)
+            print(f"[GPU-Batch] Epoch {ep+1}: MSE={mse:.4f}")
+
+
+
+    def train_pipeline_MPI(self, X, y, epochs=20, micro_batch_size=8):
         """
         Train the model using pipeline parallelism and micro-batching across multiple MPI ranks.
 
@@ -533,6 +641,105 @@ class HousePriceMLP:
                 self.loss_history.append(mse)
                 print(f"Pipeline Ep {ep+1}: MSE={mse:.4f}, time={time.time() - epoch_start:.3f}s")
 
+    def train_pipeline_gpu(self, X, y, epochs=20, micro_batch_size=8):
+        """
+        Pipeline-parallel training on GPU.  Data flows forward stage-by-stage
+        using CuPy on each rank, but MPI sends/recvs use NumPy buffers under the hood.
+        """
+        if self.size == 1:
+            return self.train_serial_gpu(X, y, epochs=epochs)
+
+        # Move full dataset to GPU
+        X_gpu = cp.asarray(X)
+        y_gpu = cp.asarray(y)
+
+        comm      = self.manager.comm
+        rank      = self.rank
+        size      = self.size
+        next_rank = rank + 1 if rank + 1 < size else None
+        prev_rank = rank - 1 if rank - 1 >= 0      else None
+
+        # how many micro-batches?
+        num_batches = (len(X_gpu) + micro_batch_size - 1) // micro_batch_size
+
+        # find input dim from first DenseGPU
+        first_dense = next(l for l in self.layers if isinstance(l, DenseGPU))
+        in_dim = first_dense.weights.shape[1]
+
+        for ep in range(epochs):
+            epoch_start = time.time()
+            epoch_loss = 0.0
+
+            for mb in range(num_batches):
+                # batch slice
+                start_idx = mb * micro_batch_size
+                end_idx   = min(start_idx + micro_batch_size, len(X_gpu))
+                batch_size = end_idx - start_idx
+
+                # ----- Stage 0 (source rank) -----
+                if rank == 0:
+                    # forward on GPU
+                    acts_gpu = cp.vstack([self.forward(x) for x in X_gpu[start_idx:end_idx]])
+                    # copy to CPU and send
+                    acts = cp.asnumpy(acts_gpu)
+                    comm.Send([acts, MPI.DOUBLE], dest=next_rank, tag=ep*num_batches+mb)
+
+                    # recv gradients back (NumPy), copy to GPU, apply
+                    grad_back = np.empty_like(acts)
+                    comm.Recv([grad_back, MPI.DOUBLE], source=next_rank, tag=ep*num_batches+mb)
+                    grad_back_gpu = cp.asarray(grad_back)
+                    for g in grad_back_gpu:
+                        self.backward(g)
+
+                # ----- Final Stage (sink rank) -----
+                elif rank == size-1:
+                    # recv activations, copy to GPU
+                    buf = np.empty((batch_size, in_dim), dtype=float)
+                    comm.Recv([buf, MPI.DOUBLE], source=prev_rank, tag=ep*num_batches+mb)
+                    buf_gpu = cp.asarray(buf)
+
+                    # forward+loss on GPU
+                    outs_gpu = cp.array([self.forward(x)[0] for x in buf_gpu])
+                    diffs = cp.asnumpy(outs_gpu) - np.array(y[start_idx:end_idx])
+                    epoch_loss += np.sum(diffs**2)
+
+                    # backward on GPU (pick last grad), tile, send back
+                    grad_prev_gpu = None
+                    for d in diffs:
+                        grad_prev_gpu = self.backward(cp.asarray([2*d]))  # shape (1,)
+                    grad_batch_gpu = cp.tile(grad_prev_gpu, (batch_size, 1))
+                    comm.Send([cp.asnumpy(grad_batch_gpu), MPI.DOUBLE],
+                            dest=prev_rank, tag=ep*num_batches+mb)
+
+                # ----- Intermediate Stages -----
+                else:
+                    # recv → GPU → forward → send
+                    buf_in = np.empty((batch_size, in_dim), dtype=float)
+                    comm.Recv([buf_in, MPI.DOUBLE], source=prev_rank, tag=ep*num_batches+mb)
+                    acts_gpu = cp.vstack([self.forward(x) for x in cp.asarray(buf_in)])
+                    comm.Send([cp.asnumpy(acts_gpu), MPI.DOUBLE],
+                            dest=next_rank, tag=ep*num_batches+mb)
+
+                    # recv grad_back → GPU → backward → tile → send back
+                    grad_back = np.empty_like(buf_in)
+                    comm.Recv([grad_back, MPI.DOUBLE], source=next_rank, tag=ep*num_batches+mb)
+                    grad_back_gpu = cp.asarray(grad_back)
+
+                    grad_prev_gpu = None
+                    for g in grad_back_gpu:
+                        grad_prev_gpu = self.backward(g)
+                    grad_batch_gpu = cp.tile(grad_prev_gpu, (batch_size, 1))
+                    comm.Send([cp.asnumpy(grad_batch_gpu), MPI.DOUBLE],
+                            dest=prev_rank, tag=ep*num_batches+mb)
+
+            # finish epoch: gather and print loss
+            total_loss = comm.reduce(epoch_loss, op=MPI.SUM, root=0)
+            if rank == 0:
+                mse = total_loss / len(X_gpu)
+                self.loss_history.append(mse)
+                print(f"[GPU-Pipeline] Epoch {ep+1}: MSE={mse:.4f}, "
+                    f"time={(time.time()-epoch_start):.2f}s")
+
 
     def predict(self, raw_input, X_min, X_max, y_min, y_max):
         """
@@ -546,12 +753,16 @@ class HousePriceMLP:
         -----------
         raw_input : list or np.ndarray
             A single input feature vector (unnormalized).
+
         X_min : list or np.ndarray
             Minimum values for each input feature (used for normalization).
+
         X_max : list or np.ndarray
             Maximum values for each input feature.
+
         y_min : float
             Minimum target value (e.g., lowest house price in training set).
+
         y_max : float
             Maximum target value.
 
@@ -559,6 +770,7 @@ class HousePriceMLP:
         --------
         float
             The denormalized predicted house price.
+
         """
         # Normalize each feature using min-max scaling
         norm = np.array([
@@ -646,41 +858,50 @@ Arguments:
     Type       : Flag (boolean)
     Usage      : Include this flag to train the model using either serial or pipeline mode.
 
---data_p
-    Description: Enable data parallelism (used with --train).
-    Type       : Flag (boolean)
-    Usage      : Use this flag to activate data parallel training across MPI processes.
-
---model_p
+--model_p_MPI
     Description: Enable model pipeline parallelism (used with --train).
     Type       : Flag (boolean)
     Usage      : Use this flag to split the model across MPI ranks for pipeline-parallel training.
+
+--GPU
+    Description: Enable model training on single GPU.
+    Type       : Flag (boolean)
+    Usage      : Use this flag to train the model in serial mode on a single CUDA enabled GPU device.
 
 --predict
     Description: Run the prediction routine.
     Type       : Flag (boolean)
     Usage      : Include this flag to perform a prediction instead of training.
 
+--data_p (NOT IMPLEMENTED)
+    Description: Enable data parallelism (used with --train).
+    Type       : Flag (boolean)
+    Usage      : Use this flag to activate data parallel training across MPI processes.
+
+
 Examples:
 ---------
 
 1. Train the model using MPI pipeline parallelism with 6 cores:
-    mpirun.openmpi -np 6 python main.py --train --model_p
+    mpirun.openmpi -np 6 python testing.py --train --model_p_MPI
 
 2. Train the model using serial training:
-    python main.py --train
+    python testing.py --train
 
-3. Predict using a trained model:
-    python main.py --predict
+3. Predict using a trained model using usd:
+    python testing.py --predict --currency USD
 
 """
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('--train',    action='store_true')
+    parser.add_argument('--gpu',      action='store_true')
     parser.add_argument('--data_p',   action='store_true')
-    parser.add_argument('--model_p',  action='store_true')
+    parser.add_argument('--model_p_MPI',  action='store_true')
     parser.add_argument('--predict',  action='store_true')
+    parser.add_argument('--currency','-c', type=str,
+                        choices=["USD", "EURO", "YEN", "GBP", "CAD", "INR", "CNY", "AUD", "MXN"])
     args = parser.parse_args()
 
     # instantiate MPI Manager
@@ -689,47 +910,95 @@ if __name__ == "__main__":
     # Split data 80% train and 20% test
     split = int(0.8 * len(X)); Xtr, ytr = X[:split], y[:split]
 
-    # Instantiate the model and set the learning rate + mpi manager + args
-    model = HousePriceMLP(
-        lr=1e-5,
-        mpi_mgr=mpi_mgr,
-        pipeline=args.model_p
-    )
-    # Check if there is a already pretrained weights file
-    if os.path.exists("weights.json"):
-        model.load_weights('weights.json')
-
+    model = None  # model will be instantiated based on mode
     epochs = 20
+
     # change effect of runtime based on command line args
     # check for train command line argument
     if args.train:
         start_time = time.time()
-        # check for model_p command line argument
-        if args.model_p:
+
+        # check for model_p_MPI command line argument
+        if args.model_p_MPI and args.gpu:
+            model = HousePriceMLP(lr=1e-5, mpi_mgr=mpi_mgr,
+                                  pipeline=True, use_gpu=True)
             Xb = mpi_mgr.comm.bcast(Xtr, root=0)
             yb = mpi_mgr.comm.bcast(ytr, root=0)
-            model.train_pipeline(Xb, yb, epochs=epochs, micro_batch_size=20)
+            model.train_pipeline_gpu(Xb, yb, epochs=epochs, micro_batch_size=20)
 
-            end_time = time.time()
-            exec_time = end_time-start_time
+        elif args.model_p_MPI:
+            model = HousePriceMLP(
+                lr=1e-5,
+                mpi_mgr=mpi_mgr,
+                pipeline=True
+            )
+            Xb = mpi_mgr.comm.bcast(Xtr, root=0)
+            yb = mpi_mgr.comm.bcast(ytr, root=0)
+            model.train_pipeline_MPI(Xb, yb, epochs=epochs, micro_batch_size=20)
+
         # Data Parallelism hasn't been implemented for this exercise
         elif args.data_p:
             raise NotImplementedError
-        
-        else:
-            model.train_serial(Xtr, ytr, epochs=epochs)
 
+        elif args.gpu:
+            model = HousePriceMLP(
+                lr=1e-5,
+                mpi_mgr=mpi_mgr,
+                pipeline=False,
+                use_gpu=True
+            )
+            gpu_start = time.time()
+            free, total = cuda_rt.memGetInfo()
+            print(f"Start: GPU Memory Free: {free // 1024**2} MB")
+            model.train_serial_gpu(Xtr, ytr, epochs=epochs)
+            gpu_end = time.time()
+            free, _ = cuda_rt.memGetInfo()
+            print(f"End: GPU Memory Free: {free // 1024**2} MB")
+            print(f"GPU Training Time: {gpu_end - gpu_start:.2f}s")
+            exec_time = gpu_end - gpu_start
+
+        else:
+            model = HousePriceMLP(
+                lr=1e-5,
+                mpi_mgr=mpi_mgr,
+                pipeline=False
+            )
+            model.train_serial(Xtr, ytr, epochs=epochs)
             end_time = time.time()
-            exec_time = end_time-start_time
-        
+            exec_time = end_time - start_time
+
+        # Check if there is a pretrained weights file to load
+        if model and os.path.exists("weights.json"):
+            model.load_weights('weights.json')
+
         # Regardless of if parallel or serial, then rank 0 saves weights at the end of training
-        if mpi_mgr.rank == 0:
+        if mpi_mgr.rank == 0 and model:
             model.save_weights("weights.json")
             print("Training completed in:", exec_time, " seconds")
 
     # check for predict command line argument
     elif args.predict and mpi_mgr.rank == 0:
+        if not args.currency:
+            parser.error("--currency is required with --predict")
+
+        model = HousePriceMLP(
+            lr=1e-5,
+            mpi_mgr=mpi_mgr,
+            pipeline=False
+        )
         model.load_weights("weights.json")
+
         sample = [2000,3,2,10,1,2,1500,10.5,0.25,6,0,1,1,2010]
         price = model.predict(sample, Xm, XM, ym, yM)
-        print(f"Predicted price: ${price:.2f}")
+
+        # Conversions as of 6/18/2025
+        match args.currency:
+            case "USD":  print(f"Predicted price: ${price:,.2f}")
+            case "EURO": print(f"Predicted price: €{(price * 0.87):,.2f}")
+            case "YEN":  print(f"Predicted price: ¥{(price * 144.8):,.2f}")
+            case "GBP":  print(f"Predicted price: £{(price * 0.7437):,.2f}")
+            case "CAD":  print(f"Predicted price: ${(price * 1.366):,.2f}")
+            case "INR":  print(f"Predicted price: ₹{(price * 86.52):,.2f}")
+            case "CNY":  print(f"Predicted price: ¥{(price * 7.189):,.2f}")
+            case "AUD":  print(f"Predicted price: A${(price * 1.534):,.2f}")
+            case "MXN":  print(f"Predicted price: Mex${(price * 18.95):,.2f}")
