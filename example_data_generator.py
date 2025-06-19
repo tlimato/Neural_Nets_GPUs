@@ -1,3 +1,6 @@
+# Author      : Tyson Limato
+# Date        : 2025-6-1
+# File Name   : example_data_generator.py
 import csv
 import random
 
