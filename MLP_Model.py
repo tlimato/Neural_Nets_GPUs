@@ -497,7 +497,7 @@ class HousePriceMLP:
                     for g in grad_back_gpu:
                         self.backward(g)
 
-                # ----- Final Stage: the "sink" rank computes loss and initial grads -----
+                # ----- Final Stage: the sync rank computes loss and initial grads -----
                 elif rank == size - 1:
                     # 1) Receive activations from previous rank (NumPy buffer)
                     buf = np.empty((batch_size, in_dim), dtype=float)

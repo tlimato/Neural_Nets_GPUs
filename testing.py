@@ -32,6 +32,7 @@
 #   - s̶e̶g̶m̶e̶n̶t̶ c̶o̶d̶e̶ i̶n̶t̶o̶ m̶u̶l̶t̶i̶p̶l̶e̶ f̶i̶l̶e̶s̶
 #   - update setup guide and create readme
 #   - test on medicine bow once you get access (2 gpus)
+#   - weights.json in its own folder and only load for predictions
 #
 # ------------------------------------------------------------
 import pandas as pd
