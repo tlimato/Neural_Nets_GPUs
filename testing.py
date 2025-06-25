@@ -181,7 +181,7 @@ if __name__ == "__main__":
                                   pipeline=False, use_gpu=True)
             free, _ = cuda_rt.memGetInfo()
             print(f"Start: GPU Memory Free: {free//1024**2} MB")
-            model.train_serial_gpu(Xtr, ytr, epochs=epochs, batch_size=64)
+            model.data_parallel_gpu(Xtr, ytr, epochs=epochs, batch_size=64)
             free, _ = cuda_rt.memGetInfo()
             print(f"End: GPU Memory Free: {free//1024**2} MB")
 

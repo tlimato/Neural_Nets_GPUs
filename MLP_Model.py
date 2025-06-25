@@ -77,17 +77,23 @@ class HousePriceMLP:
             blocks = []
             i = 0
             while i < len(self.full_layers):
+                # create a block which is a list of layers the the first index is the current layer at i
                 blk = [self.full_layers[i]]
+                # Check if the layer i is a dense class, index i + 1 is < length, and layer i + 1 is a ReLU Class. If so append the i+1 layer to the block
                 if isinstance(self.full_layers[i], DenseClass) \
                 and i+1 < len(self.full_layers) \
                 and isinstance(self.full_layers[i+1], ReLUClass):
                     blk.append(self.full_layers[i+1])
+                    # increment "i" by 2 so that that layers are double added to blocks
                     i += 2
                 else:
+                    # increment "i" normally if current layer at "self.full_layers[i]" isn't a Dense Layer (starting index could be a Relu)
                     i += 1
+                # append the block "blk" to the blocks list which contains the layer blocks for our pipeline
                 blocks.append(blk)
 
             num_blocks = len(blocks)
+            # num_stages is the number of MPI ranks and/or devices we have to parallelize our data across.  the number of stages cannot be greater than the number of blocks. 
             num_stages = self.size
 
             if num_stages > num_blocks:
@@ -97,7 +103,7 @@ class HousePriceMLP:
                 )
 
             # 2) Divide blocks evenly
-            per, rem = divmod(num_blocks, num_stages)
+            per, rem = divmod(num_blocks, num_stages) # allows us to easily get the quotient and remainder of our num_blocks / num_stages
             start = 0
             for r in range(num_stages):
                 count = per + (1 if r < rem else 0)
@@ -206,7 +212,7 @@ class HousePriceMLP:
             if self.rank == 0:
                 print(f"Serial Epoch {ep+1}: MSE={mse:.4f}, t={epoch_time:.2f}s")
 
-    def train_serial_gpu(self, X, y, epochs=20, batch_size=64):
+    def data_parallel_gpu(self, X, y, epochs=20, batch_size=64):
         # 1) Move all data to GPU once
         X_gpu = cp.asarray(X)      # shape (N, 14)
         y_gpu = cp.asarray(y)      # shape (N,)
@@ -253,7 +259,7 @@ class HousePriceMLP:
             print(f"[GPU-Batch] Epoch {ep+1}: MSE={mse:.4f}, t={epoch_time:.2f}s")
 
 
-
+    # START OF SLIDE 14: Pipeline Model Parallelism with MPI
     def train_pipeline_MPI(self, X, y, epochs=20, micro_batch_size=8):
         """
         Train the model using pipeline parallelism and micro-batching across multiple MPI ranks.
@@ -264,20 +270,20 @@ class HousePriceMLP:
         """
 
         # -------------------------------------------------------------
-        # 0) Set up MPI communication
+        # 0) Set up MPI communication → Slide 20: MPI Concepts Applied
         # -------------------------------------------------------------
         comm = self.manager.comm           # MPI communicator (handles send/recv)
         next_rank = self.rank + 1 if self.rank + 1 < self.size else None
         prev_rank = self.rank - 1 if self.rank - 1 >= 0 else None
 
         # -------------------------------------------------------------
-        # 1) Determine how many micro-batches we need
+        # 1) Determine how many micro-batches we need → Slide 17: Micro-Batching for Pipelining Efficiency
         # -------------------------------------------------------------
         # e.g. if 100 samples and micro_batch_size=8, we get 13 batches of varying size
         num_batches = (len(X) + micro_batch_size - 1) // micro_batch_size
 
         # -------------------------------------------------------------
-        # 2) Figure out activation dimension for communication buffers
+        # 2) Figure out activation dimension for communication buffers → Slide 19: Memory Management and Buffer Allocation
         # -------------------------------------------------------------
         first_dense = next(layer for layer in self.layers if isinstance(layer, Dense))
         in_dim = first_dense.weights.shape[1]
@@ -290,7 +296,7 @@ class HousePriceMLP:
             epoch_loss = 0.0
 
             # ---------------------------------------------------------
-            # 4) Micro-batch loop
+            # 4) Micro-batch loop → Slide 4: Micro-Batching
             # ---------------------------------------------------------
             for mb in range(num_batches):
                 # 4a) Compute slice indices for this micro-batch
@@ -301,7 +307,7 @@ class HousePriceMLP:
                 batch_size = len(X_mb)
 
                 # -----------------------------------------------------
-                # 4b) Stage 0 (source rank) – produce and send activations
+                # 4b) Stage 0 (source rank) – produce and send activations → Slide 16: Forward Pass – Rank 0
                 # -----------------------------------------------------
                 if self.rank == 0:
                     # Run forward pass on each sample locally
@@ -325,7 +331,7 @@ class HousePriceMLP:
                         self.backward(g)
 
                 # -----------------------------------------------------
-                # 4c) Final Stage (sink rank) – compute loss & initial grads
+                # 4c) Final Stage (sink rank) – compute loss & initial grads → Slide 15 & Slide 16: Sink Rank Logic
                 # -----------------------------------------------------
                 elif self.rank == self.size - 1:
                     # Receive activations from previous rank
@@ -356,7 +362,7 @@ class HousePriceMLP:
                             tag=ep * num_batches + mb)
 
                 # -----------------------------------------------------
-                # 4d) Intermediate Stages – relay activations & gradients
+                # 4d) Intermediate Stages – relay activations & gradients → Slide 16 and 17: Relay Logic
                 # -----------------------------------------------------
                 else:
                     # Receive activations from previous stage
@@ -391,7 +397,7 @@ class HousePriceMLP:
                             tag=ep * num_batches + mb)
 
             # -------------------------------------------------------------
-            # 5) End of epoch: gather total loss and record time
+            # 5) End of epoch: gather total loss and record time → Slide 20: MPI Reduce
             # -------------------------------------------------------------
             total_loss = comm.reduce(epoch_loss, op=MPI.SUM, root=0)
             if self.rank == 0:
@@ -415,7 +421,7 @@ class HousePriceMLP:
         """
         # If there's only one MPI rank, just do serial GPU training instead
         if self.size == 1:
-            return self.train_serial_gpu(X, y, epochs=epochs)
+            return self.data_parallel_gpu(X, y, epochs=epochs)
 
         # Move entire dataset into GPU memory once (CuPy arrays live on the device)
         X_gpu = cp.asarray(X)
@@ -618,5 +624,4 @@ class HousePriceMLP:
     def get_loss_history(self):
         """Return the accumulated loss history"""
         return self.loss_history
-
-# ------------------ Data Loader ------------------
+    
