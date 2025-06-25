@@ -1,4 +1,7 @@
-# dynamic_work_assignment.py
+# Author      : Tyson Limato
+# Date        : 2025-6-24
+# File Name   : dynamic_work_assignment.py
+
 from mpi4py import MPI
 
 comm = MPI.COMM_WORLD

@@ -13,8 +13,8 @@
 # Dependencies:
 #   See the package-list.txt file for all of the utilized packages.
 #   To easily replicate the environment install it using conda or miniconda3
-#   using: "conda create --name <env> --file package-list.txt". The large dependencies
-#   are below.
+#   using: "conda create --name <env> --file package-list.txt" or executing 
+#   the "setup_conda_env.sh" bash script. The large dependencies are below.
 #       - mpi4py
 #       - pandas
 #       - numpy
@@ -24,7 +24,7 @@
 #   - C̶o̶m̶p̶l̶e̶t̶e̶ G̶P̶U̶ t̶e̶s̶t̶i̶n̶g̶
 #   - i̶m̶p̶l̶e̶m̶e̶n̶t̶ g̶r̶a̶p̶h̶s̶ (̶l̶o̶s̶s̶,̶ t̶r̶a̶i̶n̶i̶n̶g̶ t̶i̶m̶e̶)̶
 #   - c̶u̶r̶r̶e̶n̶c̶y̶ c̶o̶n̶v̶e̶r̶s̶i̶o̶n̶
-#   - develop MPI exercises
+#   - d̶e̶v̶e̶l̶o̶p̶ M̶P̶I̶ e̶x̶e̶r̶c̶i̶s̶e̶s̶
 #   - develop CuPy Exercises
 #   - m̶a̶k̶e̶ b̶a̶s̶h̶ s̶c̶r̶i̶p̶t̶ f̶o̶r̶ c̶o̶n̶d̶a̶ e̶n̶v̶i̶r̶o̶n̶m̶e̶n̶t̶
 #   - TODO: CONVERT THIS INTO AN EXERCISE FOR SENDING FROM CPU TO GPU a) copy data off b) comm send

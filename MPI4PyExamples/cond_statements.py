@@ -1,3 +1,6 @@
+# Author      : Tyson Limato
+# Date        : 2025-6-18
+# File Name   : cond_statements.py
 from mpi4py import MPI
 
 comm = MPI.COMM_WORLD

@@ -1,4 +1,7 @@
-# parallel_for_basic.py
+# Author      : Tyson Limato
+# Date        : 2025-6-24
+# File Name   : parallel_for_basic.py
+
 from mpi4py import MPI
 
 comm = MPI.COMM_WORLD
