@@ -28,7 +28,7 @@
 #   - develop CuPy Exercises
 #   - m̶a̶k̶e̶ b̶a̶s̶h̶ s̶c̶r̶i̶p̶t̶ f̶o̶r̶ c̶o̶n̶d̶a̶ e̶n̶v̶i̶r̶o̶n̶m̶e̶n̶t̶
 #   - TODO: CONVERT THIS INTO AN EXERCISE FOR SENDING FROM CPU TO GPU a) copy data off b) comm send
-#   - add device info for the GPU section
+#   - a̶d̶d̶ d̶e̶v̶i̶c̶e̶ i̶n̶f̶o̶ f̶o̶r̶ t̶h̶e̶ G̶P̶U̶ s̶e̶c̶t̶i̶o̶n̶
 #   - s̶e̶g̶m̶e̶n̶t̶ c̶o̶d̶e̶ i̶n̶t̶o̶ m̶u̶l̶t̶i̶p̶l̶e̶ f̶i̶l̶e̶s̶
 #
 # ------------------------------------------------------------

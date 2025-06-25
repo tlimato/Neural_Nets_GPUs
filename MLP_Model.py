@@ -213,6 +213,17 @@ class HousePriceMLP:
                 print(f"Serial Epoch {ep+1}: MSE={mse:.4f}, t={epoch_time:.2f}s")
 
     def data_parallel_gpu(self, X, y, epochs=20, batch_size=64):
+        # Get number of GPUs available
+        num_gpus = cp.cuda.runtime.getDeviceCount()
+        print(f"Number of GPUs: {num_gpus}")
+
+        # Print info for each GPU
+        for i in range(num_gpus):
+            props = cp.cuda.runtime.getDeviceProperties(i)
+            print(f"\nGPU {i}: {props['name'].decode()}")
+            print(f"  Compute Capability: {props['major']}.{props['minor']}")
+            print(f"  Memory: {props['totalGlobalMem'] / 1e6:.2f} MB")
+            print(f"  Multiprocessors: {props['multiProcessorCount']}")
         # 1) Move all data to GPU once
         X_gpu = cp.asarray(X)      # shape (N, 14)
         y_gpu = cp.asarray(y)      # shape (N,)
@@ -419,6 +430,17 @@ class HousePriceMLP:
         marshaled between GPUs by copying to/from host (NumPy) buffers and sending
         via MPI, while all layer compute stays on the GPU via CuPy.
         """
+        # Get number of GPUs available
+        num_gpus = cp.cuda.runtime.getDeviceCount()
+        print(f"Number of GPUs: {num_gpus}")
+
+        # Print info for each GPU
+        for i in range(num_gpus):
+            props = cp.cuda.runtime.getDeviceProperties(i)
+            print(f"\nGPU {i}: {props['name'].decode()}")
+            print(f"  Compute Capability: {props['major']}.{props['minor']}")
+            print(f"  Memory: {props['totalGlobalMem'] / 1e6:.2f} MB")
+            print(f"  Multiprocessors: {props['multiProcessorCount']}")
         # If there's only one MPI rank, just do serial GPU training instead
         if self.size == 1:
             return self.data_parallel_gpu(X, y, epochs=epochs)
