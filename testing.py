@@ -25,9 +25,9 @@
 #   - i̶m̶p̶l̶e̶m̶e̶n̶t̶ g̶r̶a̶p̶h̶s̶ (̶l̶o̶s̶s̶,̶ t̶r̶a̶i̶n̶i̶n̶g̶ t̶i̶m̶e̶)̶
 #   - c̶u̶r̶r̶e̶n̶c̶y̶ c̶o̶n̶v̶e̶r̶s̶i̶o̶n̶
 #   - d̶e̶v̶e̶l̶o̶p̶ M̶P̶I̶ e̶x̶e̶r̶c̶i̶s̶e̶s̶
-#   - develop CuPy Exercises
+#   - d̶e̶v̶e̶l̶o̶p̶ C̶u̶P̶y̶ E̶x̶e̶r̶c̶i̶s̶e̶s̶
 #   - m̶a̶k̶e̶ b̶a̶s̶h̶ s̶c̶r̶i̶p̶t̶ f̶o̶r̶ c̶o̶n̶d̶a̶ e̶n̶v̶i̶r̶o̶n̶m̶e̶n̶t̶
-#   - TODO: CONVERT THIS INTO AN EXERCISE FOR SENDING FROM CPU TO GPU a) copy data off b) comm send
+#   - T̶O̶D̶O̶:̶ C̶O̶N̶V̶E̶R̶T̶ T̶H̶I̶S̶ I̶N̶T̶O̶ A̶N̶ E̶X̶E̶R̶C̶I̶S̶E̶ F̶O̶R̶ S̶E̶N̶D̶I̶N̶G̶ F̶R̶O̶M̶ C̶P̶U̶ T̶O̶ G̶P̶U̶ a̶)̶ c̶o̶p̶y̶ d̶a̶t̶a̶ o̶f̶f̶ b̶)̶ c̶o̶m̶m̶ s̶e̶n̶d̶
 #   - a̶d̶d̶ d̶e̶v̶i̶c̶e̶ i̶n̶f̶o̶ f̶o̶r̶ t̶h̶e̶ G̶P̶U̶ s̶e̶c̶t̶i̶o̶n̶
 #   - s̶e̶g̶m̶e̶n̶t̶ c̶o̶d̶e̶ i̶n̶t̶o̶ m̶u̶l̶t̶i̶p̶l̶e̶ f̶i̶l̶e̶s̶
 #

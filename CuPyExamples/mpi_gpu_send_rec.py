@@ -1,3 +1,7 @@
+# Author      : Tyson Limato
+# Date        : 2025-6-25
+# File Name   : mpi_gpu_send_rec.py
+
 from mpi4py import MPI
 import cupy as cp
 import numpy as np

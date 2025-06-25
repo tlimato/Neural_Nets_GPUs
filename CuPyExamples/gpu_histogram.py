@@ -1,3 +1,7 @@
+# Author      : Tyson Limato
+# Date        : 2025-6-25
+# File Name   : gpu_histogram.py
+
 import cupy as cp
 import matplotlib.pyplot as plt
 
@@ -7,5 +11,5 @@ hist, bins = cp.histogram(data, bins=100)
 
 plt.bar(cp.asnumpy(bins[:-1]), cp.asnumpy(hist), width=0.1)
 plt.title("Histogram from GPU")
-# Visualizes the default gaussian distribution of rand numbers
+
 plt.savefig("GPU_Histogram.png")
