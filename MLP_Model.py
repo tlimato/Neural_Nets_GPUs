@@ -223,7 +223,7 @@ class HousePriceMLP:
             print(f"\nGPU {i}: {props['name'].decode()}")
             print(f"  Compute Capability: {props['major']}.{props['minor']}")
             print(f"  Memory: {props['totalGlobalMem'] / 1e6:.2f} MB")
-            print(f"  Multiprocessors: {props['multiProcessorCount']}")
+            print(f"  Multiprocessors: {props['multiProcessorCount']}\n")
         # 1) Move all data to GPU once
         X_gpu = cp.asarray(X)      # shape (N, 14)
         y_gpu = cp.asarray(y)      # shape (N,)
@@ -246,7 +246,7 @@ class HousePriceMLP:
                     out = layer.forward(out)
                 preds = out.reshape(-1)     # shape (B,)
 
-                # 5) Compute loss & gradient in one shot
+                # 5) Compute loss & gradient
                 diff = preds - yb           # (B,)
                 total_loss += float(cp.sum(diff**2))
                 grad = (2 * diff / batch_size).reshape(-1, 1)  
@@ -307,7 +307,7 @@ class HousePriceMLP:
             epoch_loss = 0.0
 
             # ---------------------------------------------------------
-            # 4) Micro-batch loop → Slide 4: Micro-Batching
+            # 4) Micro-batch loop → Slide 17: Micro-Batching
             # ---------------------------------------------------------
             for mb in range(num_batches):
                 # 4a) Compute slice indices for this micro-batch
@@ -342,7 +342,7 @@ class HousePriceMLP:
                         self.backward(g)
 
                 # -----------------------------------------------------
-                # 4c) Final Stage (sink rank) – compute loss & initial grads → Slide 15 & Slide 16: Sink Rank Logic
+                # 4c) Final Stage (sink rank) – compute loss & initial grads → Slide 15 & Slide 16: Sync Rank Logic
                 # -----------------------------------------------------
                 elif self.rank == self.size - 1:
                     # Receive activations from previous rank

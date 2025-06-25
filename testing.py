@@ -30,6 +30,8 @@
 #   - T̶O̶D̶O̶:̶ C̶O̶N̶V̶E̶R̶T̶ T̶H̶I̶S̶ I̶N̶T̶O̶ A̶N̶ E̶X̶E̶R̶C̶I̶S̶E̶ F̶O̶R̶ S̶E̶N̶D̶I̶N̶G̶ F̶R̶O̶M̶ C̶P̶U̶ T̶O̶ G̶P̶U̶ a̶)̶ c̶o̶p̶y̶ d̶a̶t̶a̶ o̶f̶f̶ b̶)̶ c̶o̶m̶m̶ s̶e̶n̶d̶
 #   - a̶d̶d̶ d̶e̶v̶i̶c̶e̶ i̶n̶f̶o̶ f̶o̶r̶ t̶h̶e̶ G̶P̶U̶ s̶e̶c̶t̶i̶o̶n̶
 #   - s̶e̶g̶m̶e̶n̶t̶ c̶o̶d̶e̶ i̶n̶t̶o̶ m̶u̶l̶t̶i̶p̶l̶e̶ f̶i̶l̶e̶s̶
+#   - update setup guide and create readme
+#   - test on medicine bow once you get access (2 gpus)
 #
 # ------------------------------------------------------------
 import pandas as pd
@@ -143,6 +145,8 @@ Examples:
 3. Predict using a trained model using usd:
     python testing.py --predict --currency USD
 
+4. Train the model using gpu data parallel:
+    python testing.py --train --gpu
 """
 
 if __name__ == "__main__":
