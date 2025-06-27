@@ -96,60 +96,6 @@ def load_data(csv_path: str):
 
 
 
-"""
-Command-Line Argument Guide
----------------------------
-
-These flags control the behavior of the program at runtime. You can combine multiple flags
-as needed to perform training, data/model pipelining, or prediction. It's important to note
-that parallel options require launching the program using "mpirun.openmpi" and labeling the
-number of processes
-
-Arguments:
-----------
-
---train
-    Description: Run the training routine for the model.
-    Type       : Flag (boolean)
-    Usage      : Include this flag to train the model using either serial or pipeline mode.
-
---model_p_MPI
-    Description: Enable model pipeline parallelism (used with --train).
-    Type       : Flag (boolean)
-    Usage      : Use this flag to split the model across MPI ranks for pipeline-parallel training.
-
---gpu
-    Description: Enable model training on single GPU.
-    Type       : Flag (boolean)
-    Usage      : Use this flag to train the model in serial mode on a single CUDA enabled GPU device.
-
---predict
-    Description: Run the prediction routine.
-    Type       : Flag (boolean)
-    Usage      : Include this flag to perform a prediction instead of training.
-
---data_p (NOT IMPLEMENTED)
-    Description: Enable data parallelism (used with --train).
-    Type       : Flag (boolean)
-    Usage      : Use this flag to activate data parallel training across MPI processes.
-
-
-Examples:
----------
-
-1. Train the model using MPI pipeline parallelism with 6 cores:
-    mpirun.openmpi -np 6 python testing.py --train --model_p_MPI
-
-2. Train the model using serial training:
-    python testing.py --train
-
-3. Predict using a trained model using usd:
-    python testing.py --predict --currency USD
-
-4. Train the model using gpu data parallel:
-    python testing.py --train --gpu
-"""
-
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('--train',    action='store_true')
