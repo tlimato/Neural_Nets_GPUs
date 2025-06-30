@@ -1,0 +1,71 @@
+name: MPI_S2025
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - _libgcc_mutex=0.1=main
+  - _openmp_mutex=5.1=1_gnu
+  - bzip2=1.0.8=h5eee18b_6
+  - ca-certificates=2025.6.15=hbd8a1cb_0
+  - contourpy=1.3.2  # from pypi
+  - cupy-cuda12x=13.4.1  # from pypi
+  - cycler=0.12.1  # from pypi
+  - expat=2.7.1=h6a678d5_0
+  - fastrlock=0.8.3  # from pypi
+  - fonttools=4.58.4  # from pypi
+  - kiwisolver=1.4.8  # from pypi
+  - ld_impl_linux-64=2.40=h12ee557_0
+  - libffi=3.4.4=h6a678d5_1
+  - libgcc-ng=11.2.0=h1234567_1
+  - libgomp=11.2.0=h1234567_1
+  - libstdcxx-ng=11.2.0=h1234567_1
+  - libuuid=1.41.5=h5eee18b_0
+  - libxcb=1.17.0=h9b100fa_0
+  - matplotlib=3.10.3  # from pypi
+  - mpi=1.0=openmpi
+  - mpi4py=3.1.3=py310h6075a6b_1
+  - ncurses=6.4=h6a678d5_0
+  - numpy=2.2.6  # from pypi
+  - openmpi=0.0.0  # from pypi
+  - openssl=3.0.16=h5eee18b_0
+  - packaging=25.0  # from pypi
+  - pandas=2.3.0  # from pypi
+  - pillow=11.2.1  # from pypi
+  - pip=25.1=pyhc872135_2
+  - pthread-stubs=0.3=h0ce48e5_1
+  - pyparsing=3.2.3  # from pypi
+  - python=3.10.18=h1a3bd86_0
+  - python-dateutil=2.9.0.post0  # from pypi
+  - python_abi=3.10=2_cp310
+  - pytz=2025.2  # from pypi
+  - readline=8.2=h5eee18b_0
+  - setuptools=78.1.1=py310h06a4308_0
+  - six=1.17.0  # from pypi
+  - sqlite=3.45.3=h5eee18b_0
+  - tk=8.6.14=h993c535_1
+  - tzdata=2025.2  # from pypi
+  - wheel=0.45.1=py310h06a4308_0
+  - xorg-libx11=1.8.12=h9b100fa_1
+  - xorg-libxau=1.0.12=h9b100fa_0
+  - xorg-libxdmcp=1.1.5=h9b100fa_0
+  - xorg-xorgproto=2024.1=h5eee18b_1
+  - xz=5.6.4=h5eee18b_1
+  - zlib=1.2.13=h5eee18b_1
+  - pip:
+    - contourpy==1.3.2
+    - cupy-cuda12x==13.4.1
+    - cycler==0.12.1
+    - fastrlock==0.8.3
+    - fonttools==4.58.4
+    - kiwisolver==1.4.8
+    - matplotlib==3.10.3
+    - numpy==2.2.6
+    - openmpi==0.0.0
+    - packaging==25.0
+    - pandas==2.3.0
+    - pillow==11.2.1
+    - pyparsing==3.2.3
+    - python-dateutil==2.9.0.post0
+    - pytz==2025.2
+    - six==1.17.0
+    - tzdata==2025.2

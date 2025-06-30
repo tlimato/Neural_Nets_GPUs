@@ -2,7 +2,7 @@
 
 # Configuration
 ENV_NAME="MPI_S2025"
-PACKAGE_LIST="package-list.txt"
+ENV_YML="environment.yml"  # Changed from package list txt to environment.yml
 MINICONDA_INSTALLER="Miniconda3-latest-Linux-x86_64.sh"
 MINICONDA_URL="https://repo.anaconda.com/miniconda/$MINICONDA_INSTALLER"
 INSTALL_DIR="$HOME/miniconda3"
@@ -20,15 +20,20 @@ if ! command -v conda &> /dev/null; then
     # Clean up
     rm $MINICONDA_INSTALLER
 
-    # Initialize conda
+    # Initialize conda for the current shell session
     export PATH="$INSTALL_DIR/bin:$PATH"
     eval "$("$INSTALL_DIR/bin/conda" shell.bash hook)"
 else
     echo "Conda found."
 fi
 
-# Create environment using package list
-echo "Creating conda environment '$ENV_NAME'..."
-conda create --name "$ENV_NAME" --file "$PACKAGE_LIST" -y
+# Add necessary channels (optional if already in environment.yml)
+conda config --add channels conda-forge
+conda config --add channels defaults
 
-echo "Environment '$ENV_NAME' created successfully. Activate environment using 'conda activate MPI_S2025' "
+# Create environment from environment.yml
+echo "Creating conda environment '$ENV_NAME' from $ENV_YML..."
+conda env create -f "$ENV_YML" -n "$ENV_NAME"
+
+echo "Environment '$ENV_NAME' created successfully."
+echo "Activate environment using: conda activate $ENV_NAME"
